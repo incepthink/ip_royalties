@@ -17,7 +17,7 @@ export default function SubmitProposal() {
     intendedUse: "",
     quantity: 10,
     estimatedUnitValue: 50,
-    walletAddress: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a3c",
+    walletAddress: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -205,6 +205,8 @@ export default function SubmitProposal() {
             <input
               value={form.walletAddress}
               onChange={(e) => update("walletAddress", e.target.value)}
+              required
+              placeholder="Enter wallet address"
               className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/50"
             />
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
