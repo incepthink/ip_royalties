@@ -1,17 +1,36 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusBadge from "@/components/StatusBadge";
-import { getManufacturerNFTs } from "@/api";
-import type { NFT } from "@/api";
-import { ExternalLink, Package } from "lucide-react";
+import { axiosManufacturer } from "@/lib/utils";
+
+interface Product {
+  contract_name: string;
+  product_name: string;
+  product_quantity: number;
+  transaction_hash: string | null;
+  contract_status: string;
+}
+
+interface Summary {
+  total_products: number;
+  total_contracts: number;
+  total_royalty_owned: number;
+}
 
 export default function ManufacturerProducts() {
-  const [nfts, setNfts] = useState<NFT[]>([]);
-  useEffect(() => {
-    getManufacturerNFTs("mfr1").then(setNfts);
-  }, []);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [summary, setSummary] = useState<Summary>({
+    total_products: 0,
+    total_contracts: 0,
+    total_royalty_owned: 0,
+  });
 
-  const contracts = [...new Set(nfts.map((n) => n.contractName))];
+  useEffect(() => {
+    axiosManufacturer.get("/user/ip-proposal/products").then((res) => {
+      setProducts(res.data.data.product_description);
+      setSummary(res.data.data.summary);
+    });
+  }, []);
 
   return (
     <DashboardLayout>
@@ -23,18 +42,18 @@ export default function ManufacturerProducts() {
       <div className="bg-card rounded-xl border border-border p-6 shadow-card mb-8">
         <div className="grid grid-cols-3 gap-6 text-center">
           <div>
-            <p className="text-3xl font-bold text-accent">{nfts.length}</p>
+            <p className="text-3xl font-bold text-accent">
+              {summary.total_products}
+            </p>
             <p className="text-sm text-muted-foreground">Total Products</p>
           </div>
           <div>
-            <p className="text-3xl font-bold">{contracts.length}</p>
-            <p className="text-sm text-muted-foreground">From Contracts</p>
+            <p className="text-3xl font-bold">{summary.total_contracts}</p>
+            <p className="text-sm text-muted-foreground">Total Contracts</p>
           </div>
           <div>
-            <p className="text-sm font-mono text-muted-foreground mt-2">
-              0x1a2b...9f3c
-            </p>
-            <p className="text-sm text-muted-foreground">Wallet Address</p>
+            <p className="text-3xl font-bold">${summary.total_royalty_owned}</p>
+            <p className="text-sm text-muted-foreground">Total Royalty Owed</p>
           </div>
         </div>
       </div>
@@ -48,10 +67,10 @@ export default function ManufacturerProducts() {
                   Contract
                 </th>
                 <th className="text-left p-4 font-medium text-muted-foreground">
-                  Token ID
+                  Product
                 </th>
                 <th className="text-left p-4 font-medium text-muted-foreground">
-                  Minted Date
+                  Quantity
                 </th>
                 <th className="text-left p-4 font-medium text-muted-foreground">
                   Transaction Hash
@@ -62,22 +81,21 @@ export default function ManufacturerProducts() {
               </tr>
             </thead>
             <tbody>
-              {nfts.map((n, i) => (
+              {products.map((p, i) => (
                 <tr
                   key={i}
                   className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
-                  <td className="p-4 font-medium">{n.contractName}</td>
-                  <td className="p-4 font-mono">{n.tokenId}</td>
-                  <td className="p-4 text-muted-foreground">{n.mintedDate}</td>
-                  <td className="p-4">
-                    <span className="font-mono text-xs text-accent cursor-pointer hover:underline flex items-center gap-1">
-                      {n.transactionHash.slice(0, 10)}...
-                      {n.transactionHash.slice(-8)} <ExternalLink size={12} />
-                    </span>
+                  <td className="p-4 font-medium">{p.contract_name}</td>
+                  <td className="p-4">{p.product_name}</td>
+                  <td className="p-4">{p.product_quantity}</td>
+                  <td className="p-4 font-mono text-xs text-accent">
+                    {p.transaction_hash
+                      ? `${p.transaction_hash.slice(0, 10)}...${p.transaction_hash.slice(-8)}`
+                      : "—"}
                   </td>
                   <td className="p-4">
-                    <StatusBadge status={n.status} />
+                    <StatusBadge status={p.contract_status} />
                   </td>
                 </tr>
               ))}

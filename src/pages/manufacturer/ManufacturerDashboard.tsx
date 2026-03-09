@@ -3,17 +3,46 @@ import { Link } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
 import StatusBadge from "@/components/StatusBadge";
-import { FileText, CheckCircle, Package, Clock } from "lucide-react";
-import { getManufacturerOrders } from "@/api";
-import type { Order } from "@/api";
+import { FileText, CheckCircle, Package } from "lucide-react";
+import { axiosManufacturer } from "@/lib/utils";
+
+interface ActiveLicense {
+  contract_name: string;
+  ip_owner: string;
+  quantity_agreed: number;
+  royalty_owed: number;
+}
+
+interface RecentProposal {
+  contract_name: string;
+  product_quantity: number;
+  date: string;
+  status: string;
+}
+
+interface DashboardData {
+  summary: {
+    active_proposals: number;
+    accepted_licenses: number;
+    products_minted: number;
+  };
+  active_licenses: ActiveLicense[];
+  recent_proposals: RecentProposal[];
+}
 
 export default function ManufacturerDashboard() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null,
+  );
+
   useEffect(() => {
-    getManufacturerOrders().then(setOrders);
+    axiosManufacturer("/user/ip-proposal/dashboard").then((res) =>
+      setDashboardData(res.data.data),
+    );
   }, []);
 
-  const accepted = orders.filter((o) => o.status === "Accepted");
+  const activeLicenses = dashboardData?.active_licenses ?? [];
+  const recentProposals = dashboardData?.recent_proposals ?? [];
 
   return (
     <DashboardLayout>
@@ -24,57 +53,65 @@ export default function ManufacturerDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Active Proposals" value={2} icon={FileText} />
-        <StatCard label="Accepted Licenses" value={1} icon={CheckCircle} />
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <StatCard
-          label="Products Received"
-          value={480}
-          icon={Package}
-          trend="+48 this week"
+          label="Pending Proposals"
+          value={dashboardData?.summary.active_proposals ?? 0}
+          icon={FileText}
         />
-        <StatCard label="Pending Review" value={1} icon={Clock} />
+        <StatCard
+          label="Accepted Licenses"
+          value={dashboardData?.summary.accepted_licenses ?? 0}
+          icon={CheckCircle}
+        />
+        <StatCard
+          label="Products Minted"
+          value={dashboardData?.summary.products_minted ?? 0}
+          icon={Package}
+        />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Active License */}
-        {accepted.length > 0 && (
-          <div className="bg-card rounded-xl border border-border p-6 shadow-card">
-            <h2 className="font-semibold mb-4">Active License</h2>
-            {accepted.map((o) => (
-              <div key={o.id} className="space-y-3">
+        {/* Active Licenses */}
+        <div className="bg-card rounded-xl border border-border p-6 shadow-card">
+          <h2 className="font-semibold mb-4">Active Licenses</h2>
+          {activeLicenses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              You have no active licenses.
+            </p>
+          ) : (
+            activeLicenses.map((license, i) => (
+              <div key={i} className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">
                     Contract
                   </span>
-                  <span className="text-sm font-medium">{o.contractName}</span>
+                  <span className="text-sm font-medium">
+                    {license.contract_name}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">
                     IP Owner
                   </span>
-                  <span className="text-sm font-medium">{o.ownerName}</span>
+                  <span className="text-sm font-medium">
+                    {license.ip_owner}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">
                     Quantity Agreed
                   </span>
-                  <span className="text-sm font-medium">{o.quantity}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Minted</span>
-                  <span className="text-sm font-medium">480</span>
+                  <span className="text-sm font-medium">
+                    {license.quantity_agreed}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">
                     Royalty Owed
                   </span>
                   <span className="text-sm font-medium text-accent">
-                    $
-                    {(
-                      (o.quantity * o.estimatedUnitValue * o.royaltyCut) /
-                      100
-                    ).toLocaleString()}
+                    ${license.royalty_owed.toLocaleString()}
                   </span>
                 </div>
                 <Link
@@ -84,29 +121,38 @@ export default function ManufacturerDashboard() {
                   View Products →
                 </Link>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
 
-        {/* Recent proposals */}
+        {/* Recent Proposals */}
         <div className="bg-card rounded-xl border border-border p-6 shadow-card">
           <h2 className="font-semibold mb-4">Recent Proposals</h2>
-          <div className="space-y-3">
-            {orders.slice(0, 4).map((o) => (
-              <div
-                key={o.id}
-                className="flex items-center justify-between py-2 border-b border-border last:border-0"
-              >
-                <div>
-                  <p className="text-sm font-medium">{o.contractName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {o.quantity} units • {o.createdAt}
-                  </p>
+          {recentProposals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              You have no recent proposals.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {recentProposals.map((proposal, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                >
+                  <div>
+                    <p className="text-sm font-medium">
+                      {proposal.contract_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {proposal.product_quantity} units •{" "}
+                      {new Date(proposal.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <StatusBadge status={proposal.status} />
                 </div>
-                <StatusBadge status={o.status} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <Link
             to="/manufacturer/proposals"
             className="block text-center text-sm text-accent font-medium mt-4 hover:underline"
