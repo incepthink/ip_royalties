@@ -9,7 +9,7 @@ import type { Contract } from "@/api";
 export default function OwnerContracts() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   useEffect(() => {
-    getOwnerContracts("owner1").then(setContracts);
+    getOwnerContracts().then(setContracts);
   }, []);
 
   return (

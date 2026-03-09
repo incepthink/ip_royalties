@@ -1,10 +1,14 @@
 // API layer
+import Cookies from "js-cookie";
+import { axiosOwner, axiosManufacturer } from "@/lib/utils";
+import { IpContractCategory, IpContractStatus } from "@/types/contract";
+export { IpContractCategory, IpContractStatus };
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
-  Authorization: `Bearer ${localStorage.getItem("ipchain_token") || ""}`,
+  Authorization: `Bearer ${Cookies.get("ipchain_token") || ""}`,
 });
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -29,11 +33,11 @@ export interface Contract {
   restrictions: string[];
   royaltyCut: number;
   isPublished: boolean;
-  status: "Active" | "Pending" | "Draft" | "Completed";
+  status: IpContractStatus;
   manufacturerName?: string;
   mintedCount: number;
   agreedQuantity: number;
-  category: string;
+  category: IpContractCategory;
   createdAt: string;
 }
 
@@ -87,11 +91,11 @@ let mockContracts: Contract[] = [
     ],
     royaltyCut: 12,
     isPublished: true,
-    status: "Active",
+    status: IpContractStatus.ACTIVE,
     manufacturerName: "Nike Corp",
     mintedCount: 480,
     agreedQuantity: 500,
-    category: "Fashion",
+    category: IpContractCategory.FASHION,
     createdAt: "2024-01-15",
   },
   {
@@ -111,10 +115,10 @@ let mockContracts: Contract[] = [
     restrictions: ["No digital-only products", "Minimum order 100 units"],
     royaltyCut: 8,
     isPublished: true,
-    status: "Pending",
+    status: IpContractStatus.PENDING,
     mintedCount: 0,
     agreedQuantity: 300,
-    category: "Art",
+    category: IpContractCategory.ART,
     createdAt: "2024-02-20",
   },
   {
@@ -134,11 +138,11 @@ let mockContracts: Contract[] = [
     restrictions: ["Premium products only", "No mass market distribution"],
     royaltyCut: 15,
     isPublished: true,
-    status: "Completed",
+    status: IpContractStatus.COMPLETED,
     manufacturerName: "Vintage Works",
     mintedCount: 200,
     agreedQuantity: 200,
-    category: "Fashion",
+    category: IpContractCategory.FASHION,
     createdAt: "2023-11-05",
   },
   {
@@ -154,10 +158,10 @@ let mockContracts: Contract[] = [
     restrictions: ["Luxury segment only", "Requires quality approval"],
     royaltyCut: 10,
     isPublished: false,
-    status: "Draft",
+    status: IpContractStatus.DRAFT,
     mintedCount: 0,
     agreedQuantity: 0,
-    category: "Art",
+    category: IpContractCategory.ART,
     createdAt: "2024-03-01",
   },
   {
@@ -177,10 +181,10 @@ let mockContracts: Contract[] = [
     restrictions: ["Hardware products only", "No software-only usage"],
     royaltyCut: 18,
     isPublished: true,
-    status: "Active",
+    status: IpContractStatus.ACTIVE,
     mintedCount: 120,
     agreedQuantity: 400,
-    category: "Tech",
+    category: IpContractCategory.TECH,
     createdAt: "2024-01-28",
   },
   {
@@ -196,10 +200,10 @@ let mockContracts: Contract[] = [
     restrictions: ["No political use", "Season-specific designs"],
     royaltyCut: 14,
     isPublished: true,
-    status: "Active",
+    status: IpContractStatus.ACTIVE,
     mintedCount: 640,
     agreedQuantity: 1000,
-    category: "Sports",
+    category: IpContractCategory.SPORTS,
     createdAt: "2024-02-10",
   },
 ];
@@ -356,7 +360,7 @@ const mapCollection = (c: any): Contract => ({
   id: String(c.id),
   name: c.name,
   description: c.description || "",
-  imageUrl: c.imageUrl || c.image_uri || "",
+  imageUrl: c.imageUrl || c.image_url || c.image_uri || "",
   ownerId: String(c.ownerId ?? c.owner_id),
   ownerName: c.ownerName ?? "",
   allowedUseCases: Array.isArray(c.allowedUseCases)
@@ -378,46 +382,39 @@ const mapCollection = (c: any): Contract => ({
   createdAt: c.createdAt ?? "",
 });
 
-export async function getAvailableContracts() {
-  await delay(200);
-  return mockContracts.filter((c) => c.isPublished);
+export async function getAvailableContracts(): Promise<Contract[]> {
+  const res = await axiosManufacturer.get("/platform/ip_contract");
+  return (res.data.data as any[]).map(mapCollection);
 }
 
-export async function getOwnerContracts(ownerId: string) {
-  await delay(200);
-  return mockContracts.filter((c) => c.ownerId === ownerId);
+export async function getOwnerContracts(): Promise<Contract[]> {
+  const res = await axiosOwner.get('/owner/ip-contract');
+  return (res.data.data as any[]).map(mapCollection);
 }
 
-export async function getContractById(id: string) {
-  await delay(200);
-  const contract = mockContracts.find((c) => c.id === id);
-  if (!contract) throw new Error("Contract not found");
-  return contract;
+export async function getContractById(id: string): Promise<Contract> {
+  const res = await axiosManufacturer.get(`/platform/ip_contract/${id}`);
+  return mapCollection(res.data.data);
 }
 
-export async function createContract(data: Partial<Contract>) {
-  await delay(200);
-  const storedUser = localStorage.getItem("ipchain_user");
-  const user = storedUser ? JSON.parse(storedUser) : { id: "owner1", name: "Jordan Brand" };
-  const newContract: Contract = {
-    id: `c${Date.now()}`,
-    name: data.name ?? "",
-    description: data.description ?? "",
-    imageUrl: data.imageUrl ?? "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=300&fit=crop",
-    ownerId: user.id,
-    ownerName: user.name,
-    allowedUseCases: data.allowedUseCases ?? [],
-    restrictions: data.restrictions ?? [],
-    royaltyCut: data.royaltyCut ?? 0,
-    isPublished: data.isPublished ?? false,
-    status: data.isPublished ? "Active" : (data.status ?? "Draft"),
-    mintedCount: 0,
-    agreedQuantity: 0,
-    category: data.category ?? "",
-    createdAt: new Date().toISOString().split("T")[0],
-  };
-  mockContracts.push(newContract);
-  return newContract;
+export interface CreateContractPayload {
+  name: string;
+  royalty_cut: number;
+  category: IpContractCategory;
+  description?: string;
+  image_url?: string;
+  allowed_use_cases?: string[];
+  restrictions?: string[];
+}
+
+export async function createContract(data: CreateContractPayload) {
+  const res = await axiosOwner.post("/owner/ip-contract/create", {
+    ip_contract: {
+      ...data,
+      status: IpContractStatus.PENDING,
+    },
+  });
+  return res.data;
 }
 
 const mapOrder = (o: any): Order => ({
@@ -479,18 +476,37 @@ export async function getManufacturerOrders() {
   return mockOrders.filter((o) => o.manufacturerId === userId);
 }
 
-export async function acceptOrder(orderId: string) {
-  await delay(200);
-  const order = mockOrders.find((o) => o.id === orderId);
-  if (order) order.status = "Accepted";
-  return { success: true };
+export async function getUserProposals(): Promise<Order[]> {
+  const res = await axiosManufacturer.get("/user/ip_proposal");
+  return (res.data.data as any[]).map(mapOrder);
 }
 
-export async function rejectOrder(orderId: string) {
-  await delay(200);
-  const order = mockOrders.find((o) => o.id === orderId);
-  if (order) order.status = "Rejected";
-  return { success: true };
+export interface IpProposal {
+  id: string;
+  ip_contract_id: string;
+  ip_contract_name: string;
+  user_id: number;
+  owner_email: string;
+  product_name: string;
+  description: string;
+  intended_use: string;
+  quantity: number;
+  estimated_unit_value: number;
+  total_royalty_owed: number;
+  payment_status: string;
+  wallet_address: string;
+  status: 'Pending' | 'Accepted' | 'Rejected';
+  createdAt: string;
+}
+
+export async function getOwnerIpProposals(): Promise<IpProposal[]> {
+  const res = await axiosOwner.get('/owner/ip-proposal');
+  return res.data.data;
+}
+
+export async function updateProposalStatus(ip_proposal_id: string, status: 'Accepted' | 'Rejected') {
+  const res = await axiosOwner.post('/owner/ip_proposal/status/update', { status, ip_proposal_id });
+  return res.data;
 }
 
 // --- NFTs ---

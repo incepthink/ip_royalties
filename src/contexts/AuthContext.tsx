@@ -5,6 +5,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import Cookies from "js-cookie";
 import type { User } from "@/api";
 
 interface AuthContextType {
@@ -33,8 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("ipchain_token");
-    const savedUser = localStorage.getItem("ipchain_user");
+    const savedToken = Cookies.get("ipchain_token");
+    const savedUser = Cookies.get("ipchain_user");
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
@@ -45,15 +46,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
-    localStorage.setItem("ipchain_token", newToken);
-    localStorage.setItem("ipchain_user", JSON.stringify(newUser));
+    Cookies.set("ipchain_token", newToken, { expires: 10 / 24 });
+    Cookies.set("ipchain_user", JSON.stringify(newUser), { expires: 10 / 24 });
   };
 
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem("ipchain_token");
-    localStorage.removeItem("ipchain_user");
+    Cookies.remove("ipchain_token");
+    Cookies.remove("ipchain_user");
   };
 
   return (

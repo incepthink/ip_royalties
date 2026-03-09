@@ -1,48 +1,47 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusBadge from "@/components/StatusBadge";
-import { getOrdersForOwner, acceptOrder, rejectOrder } from "@/api";
-import type { Order } from "@/api";
-import { CheckCircle, XCircle } from "lucide-react";
+import { getOwnerIpProposals, updateProposalStatus } from "@/api";
+import type { IpProposal } from "@/api";
+import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function OwnerProposals() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<IpProposal[]>([]);
   const [filter, setFilter] = useState("All");
-  const [confirmModal, setConfirmModal] = useState<Order | null>(null);
+  const [confirmModal, setConfirmModal] = useState<IpProposal | null>(null);
+  const [loadingId, setLoadingId] = useState<{ id: string; action: "accept" | "reject" } | null>(null);
 
   useEffect(() => {
-    getOrdersForOwner("owner1").then(setOrders);
+    getOwnerIpProposals().then(setOrders);
   }, []);
 
   const filtered =
     filter === "All" ? orders : orders.filter((o) => o.status === filter);
   const tabs = ["All", "Pending", "Accepted", "Rejected"];
 
-  const handleAccept = async (order: Order) => {
+  const handleAccept = async (order: IpProposal) => {
+    setLoadingId({ id: order.id, action: "accept" });
     try {
-      await acceptOrder(order.id);
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: "Accepted" as const } : o,
-        ),
-      );
+      await updateProposalStatus(order.id, "Accepted");
+      setOrders(await getOwnerIpProposals());
       setConfirmModal(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to accept order");
+    } finally {
+      setLoadingId(null);
     }
   };
 
   const handleReject = async (id: string) => {
+    setLoadingId({ id, action: "reject" });
     try {
-      await rejectOrder(id);
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === id ? { ...o, status: "Rejected" as const } : o,
-        ),
-      );
+      await updateProposalStatus(id, "Rejected");
+      setOrders(await getOwnerIpProposals());
     } catch (err: any) {
       toast.error(err.message || "Failed to reject order");
+    } finally {
+      setLoadingId(null);
     }
   };
 
@@ -74,19 +73,19 @@ export default function OwnerProposals() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
-                  <h3 className="font-semibold">{o.manufacturerName}</h3>
+                  <h3 className="font-semibold">{o.owner_email}</h3>
                   <StatusBadge status={o.status} />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Contract:{" "}
                   <span className="text-foreground font-medium">
-                    {o.contractName}
+                    {o.ip_contract_name}
                   </span>
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
                   <div>
                     <span className="text-muted-foreground">Product:</span>{" "}
-                    <span className="font-medium">{o.productName}</span>
+                    <span className="font-medium">{o.product_name}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Quantity:</span>{" "}
@@ -97,7 +96,7 @@ export default function OwnerProposals() {
                   <div>
                     <span className="text-muted-foreground">Intended Use:</span>{" "}
                     <span className="font-medium">
-                      {o.intendedUse.slice(0, 40)}...
+                      {o.intended_use.slice(0, 40)}...
                     </span>
                   </div>
                   <div>
@@ -110,15 +109,25 @@ export default function OwnerProposals() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setConfirmModal(o)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-success text-success-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                    disabled={!!loadingId}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-success text-success-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
                   >
-                    <CheckCircle size={14} /> Accept
+                    {loadingId?.id === o.id && loadingId.action === "accept" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <CheckCircle size={14} />
+                    )} Accept
                   </button>
                   <button
                     onClick={() => handleReject(o.id)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                    disabled={!!loadingId}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
                   >
-                    <XCircle size={14} /> Reject
+                    {loadingId?.id === o.id && loadingId.action === "reject" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <XCircle size={14} />
+                    )} Reject
                   </button>
                 </div>
               )}
@@ -139,8 +148,8 @@ export default function OwnerProposals() {
               </span>{" "}
               will be minted to{" "}
               <span className="font-mono text-xs">
-                {confirmModal.walletAddress.slice(0, 10)}...
-                {confirmModal.walletAddress.slice(-4)}
+                {confirmModal.wallet_address.slice(0, 10)}...
+                {confirmModal.wallet_address.slice(-4)}
               </span>
             </p>
             <div className="flex gap-3">
@@ -152,8 +161,10 @@ export default function OwnerProposals() {
               </button>
               <button
                 onClick={() => handleAccept(confirmModal)}
-                className="flex-1 py-2.5 rounded-lg bg-success text-success-foreground font-medium text-sm hover:opacity-90 transition-opacity"
+                disabled={loadingId?.action === "accept"}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-success text-success-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-60"
               >
+                {loadingId?.action === "accept" && <Loader2 size={14} className="animate-spin" />}
                 Confirm & Mint
               </button>
             </div>

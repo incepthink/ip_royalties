@@ -1,32 +1,66 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Upload } from "lucide-react";
 import { createContract } from "@/api";
+import { IpContractCategory } from "@/types/contract";
 import { toast } from "sonner";
+import { uploadImage } from "@/lib/utils";
+
+const CATEGORIES = Object.values(IpContractCategory);
+
+const splitToArray = (value: string): string[] =>
+  value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 export default function CreateContract() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     description: "",
+    image_url: "",
+    category: "" as IpContractCategory | "",
     allowedUseCases: "",
     restrictions: "",
     royaltyCut: 12,
-    isPublished: true,
   });
   const [loading, setLoading] = useState(false);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const coverRef = useRef<HTMLInputElement>(null);
 
   const update = (field: string, value: any) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const handleSubmit = async (publish: boolean) => {
+  const handleSubmit = async () => {
+    if (!form.name.trim()) {
+      toast.error("Contract name is required");
+      return;
+    }
+    if (!form.category) {
+      toast.error("Please select a category");
+      return;
+    }
     setLoading(true);
     try {
-      await createContract({ ...form, isPublished: publish } as any);
+      const image_url = coverFile
+        ? await uploadImage(coverFile)
+        : form.image_url || undefined;
+
+      await createContract({
+        name: form.name,
+        royalty_cut: form.royaltyCut,
+        category: form.category,
+        description: form.description || undefined,
+        image_url,
+        allowed_use_cases: splitToArray(form.allowedUseCases),
+        restrictions: splitToArray(form.restrictions),
+      });
       navigate("/owner/contracts");
     } catch (err: any) {
-      toast.error(err.message || "Failed to create contract");
+      toast.error(err.response?.data?.message || err.message || "Failed to create contract");
     } finally {
       setLoading(false);
     }
@@ -41,7 +75,7 @@ export default function CreateContract() {
         </p>
 
         <div className="space-y-8">
-          {/* Section 1 */}
+          {/* Section 1: Contract Details */}
           <section className="bg-card rounded-xl border border-border p-6 shadow-card">
             <h2 className="font-semibold mb-4">Contract Details</h2>
             <div className="space-y-4">
@@ -56,6 +90,29 @@ export default function CreateContract() {
                   placeholder="e.g. Air Logo License"
                 />
               </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Category
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => update("category", cat)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        form.category === cat
+                          ? "bg-accent text-accent-foreground border-accent"
+                          : "border-input bg-background text-muted-foreground hover:border-accent/50 hover:text-foreground"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="text-sm font-medium mb-1.5 block">
                   IP Description
@@ -68,27 +125,53 @@ export default function CreateContract() {
                   placeholder="Describe your intellectual property..."
                 />
               </div>
+
               <div>
                 <label className="text-sm font-medium mb-1.5 block">
                   IP Image
                 </label>
-                <div className="border-2 border-dashed border-input rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer">
-                  <Upload
-                    size={32}
-                    className="mx-auto text-muted-foreground mb-2"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Drag & drop an image, or click to browse
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    PNG, JPG up to 10MB
-                  </p>
-                </div>
+                <input
+                  ref={coverRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setCoverFile(file);
+                    const reader = new FileReader();
+                    reader.onload = () => setCoverPreview(reader.result as string);
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => coverRef.current?.click()}
+                  className="w-full border-2 border-dashed border-input rounded-xl overflow-hidden hover:border-accent/50 transition-colors"
+                >
+                  {coverPreview ? (
+                    <img
+                      src={coverPreview}
+                      alt="Cover preview"
+                      className="w-full object-cover max-h-64"
+                    />
+                  ) : (
+                    <div className="p-8 text-center">
+                      <Upload size={32} className="mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        Drag & drop an image, or click to browse
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, JPG up to 10MB
+                      </p>
+                    </div>
+                  )}
+                </button>
               </div>
             </div>
           </section>
 
-          {/* Section 2 */}
+          {/* Section 2: Usage Terms */}
           <section className="bg-card rounded-xl border border-border p-6 shadow-card">
             <h2 className="font-semibold mb-4">Usage Terms</h2>
             <div className="space-y-4">
@@ -103,6 +186,9 @@ export default function CreateContract() {
                   className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none"
                   placeholder="e.g. Footwear production, Apparel manufacturing..."
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Separate multiple values with commas
+                </p>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">
@@ -115,11 +201,14 @@ export default function CreateContract() {
                   className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none"
                   placeholder="e.g. No modifications to logo proportions..."
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Separate multiple values with commas
+                </p>
               </div>
             </div>
           </section>
 
-          {/* Section 3 */}
+          {/* Section 3: Royalty Terms */}
           <section className="bg-card rounded-xl border border-border p-6 shadow-card">
             <h2 className="font-semibold mb-4">Royalty Terms</h2>
             <div>
@@ -151,42 +240,13 @@ export default function CreateContract() {
             </div>
           </section>
 
-          {/* Section 4 */}
-          <section className="bg-card rounded-xl border border-border p-6 shadow-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">Visibility</h3>
-                <p className="text-sm text-muted-foreground">
-                  Make this contract visible to manufacturers
-                </p>
-              </div>
-              <button
-                onClick={() => update("isPublished", !form.isPublished)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${form.isPublished ? "bg-accent" : "bg-muted"}`}
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-card shadow transition-transform ${form.isPublished ? "left-6" : "left-0.5"}`}
-                />
-              </button>
-            </div>
-          </section>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleSubmit(false)}
-              disabled={loading}
-              className="flex-1 py-3 rounded-xl border border-border font-semibold text-sm hover:bg-muted transition-colors disabled:opacity-50"
-            >
-              Save as Draft
-            </button>
-            <button
-              onClick={() => handleSubmit(true)}
-              disabled={loading}
-              className="flex-1 py-3 rounded-xl gradient-accent text-accent-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              Publish Contract
-            </button>
-          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-3 rounded-xl gradient-accent text-accent-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {loading ? "Creating..." : "Create Contract"}
+          </button>
         </div>
       </div>
     </DashboardLayout>

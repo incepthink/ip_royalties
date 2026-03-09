@@ -1,5 +1,7 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/examples/ip-royalties/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/examples/ip-royalties/:path*", "destination": "/index.html" },
+    { "source": "/examples/ip-royalties", "destination": "/index.html" }
   ]
 }

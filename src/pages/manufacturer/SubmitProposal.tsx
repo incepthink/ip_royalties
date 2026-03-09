@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getContractById, createOrder } from "@/api";
+import { getContractById } from "@/api";
 import type { Contract } from "@/api";
+import { axiosManufacturer } from "@/lib/utils";
 import { CheckCircle, XCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +15,7 @@ export default function SubmitProposal() {
     productName: "",
     description: "",
     intendedUse: "",
-    quantity: 100,
+    quantity: 10,
     estimatedUnitValue: 50,
     walletAddress: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a3c",
   });
@@ -34,7 +35,18 @@ export default function SubmitProposal() {
     e.preventDefault();
     setLoading(true);
     try {
-      await createOrder({ contractId, ...form });
+      await axiosManufacturer.post("/user/ip_proposal/create", {
+        ip_proposal: {
+          ip_contract_id: contractId,
+          product_name: form.productName,
+          description: form.description,
+          intended_use: form.intendedUse,
+          quantity: form.quantity,
+          estimated_unit_value: form.estimatedUnitValue,
+          total_royalty_owed: royaltyOwed,
+          wallet_address: form.walletAddress,
+        },
+      });
       navigate("/manufacturer/proposals");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit proposal");

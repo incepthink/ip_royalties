@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusBadge from "@/components/StatusBadge";
-import { getManufacturerOrders } from "@/api";
+import { getUserProposals } from "@/api";
 import type { Order } from "@/api";
 
 export default function ManufacturerProposals() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState("All");
   useEffect(() => {
-    getManufacturerOrders().then(setOrders);
+    getUserProposals().then(setOrders);
   }, []);
 
   const tabs = ["All", "Pending", "Accepted", "Rejected"];
