@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import StatusBadge from "@/components/StatusBadge";
 import {
   FileText,
   Users,
@@ -12,42 +11,40 @@ import {
   Eye,
   Clock,
 } from "lucide-react";
-import { getOwnerContracts, getOrdersForOwner } from "@/api";
-import type { Contract, Order } from "@/api";
+import { axiosOwner } from "@/lib/utils";
+
+interface RecentActivity {
+  desc: string;
+  date: string;
+}
+
+interface PendingProposal {
+  [key: string]: unknown;
+}
+
+interface OwnerDashboardData {
+  summary: {
+    active_contracts: number;
+    total_manufacturers: number;
+    products_minted: number;
+    revenue_owed: number;
+  };
+  recent_activity: RecentActivity[];
+  pending_proposals: PendingProposal[];
+}
 
 export default function OwnerDashboard() {
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [dashboardData, setDashboardData] = useState<OwnerDashboardData | null>(null);
 
   useEffect(() => {
-    getOwnerContracts("owner1").then(setContracts);
-    getOrdersForOwner("owner1").then(setOrders);
+    axiosOwner("/owner/ip-proposal/dashboard").then((res) =>
+      setDashboardData(res.data.data)
+    );
   }, []);
 
-  const totalMinted = contracts.reduce((s, c) => s + c.mintedCount, 0);
-
-  const activities = [
-    {
-      text: "Nike Corp submitted a proposal for Heritage Crest",
-      time: "2 hours ago",
-      type: "proposal",
-    },
-    {
-      text: "Vintage Works proposal for Retro Wave Artwork is pending review",
-      time: "1 day ago",
-      type: "pending",
-    },
-    {
-      text: "Air Logo License reached 480/500 minted products",
-      time: "2 days ago",
-      type: "milestone",
-    },
-    {
-      text: "Signature Pattern V2 contract completed — 200/200 minted",
-      time: "1 week ago",
-      type: "completed",
-    },
-  ];
+  const summary = dashboardData?.summary;
+  const recentActivity = dashboardData?.recent_activity ?? [];
+  const pendingProposals = dashboardData?.pending_proposals ?? [];
 
   return (
     <DashboardLayout>
@@ -61,20 +58,22 @@ export default function OwnerDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Active Contracts"
-          value={4}
+          value={summary?.active_contracts ?? 0}
           icon={FileText}
-          trend="+2 this month"
         />
-        <StatCard label="Total Manufacturers" value={7} icon={Users} />
+        <StatCard
+          label="Total Manufacturers"
+          value={summary?.total_manufacturers ?? 0}
+          icon={Users}
+        />
         <StatCard
           label="Products Minted"
-          value={totalMinted.toLocaleString()}
+          value={summary?.products_minted ?? 0}
           icon={Package}
-          trend="+120 this week"
         />
         <StatCard
           label="Revenue Owed"
-          value="$18,400"
+          value={"$" + (summary?.revenue_owed ?? 0).toLocaleString()}
           subtitle="Based on agreed royalty %"
           icon={DollarSign}
         />
@@ -83,21 +82,25 @@ export default function OwnerDashboard() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-card rounded-xl border border-border p-6 shadow-card">
           <h2 className="font-semibold mb-4">Recent Activity</h2>
-          <div className="space-y-4">
-            {activities.map((a, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="mt-0.5 p-1.5 rounded-lg bg-accent/10">
-                  <Clock size={14} className="text-accent" />
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No recent activity.</p>
+          ) : (
+            <div className="space-y-4">
+              {recentActivity.map((a, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="mt-0.5 p-1.5 rounded-lg bg-accent/10">
+                    <Clock size={14} className="text-accent" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm">{a.desc}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(a.date).toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm">{a.text}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {a.time}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -116,23 +119,20 @@ export default function OwnerDashboard() {
 
           <div className="bg-card rounded-xl border border-border p-5 shadow-card">
             <h3 className="font-semibold mb-3 text-sm">Pending Proposals</h3>
-            {orders
-              .filter((o) => o.status === "Pending")
-              .slice(0, 3)
-              .map((o) => (
+            {pendingProposals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No pending proposals.
+              </p>
+            ) : (
+              pendingProposals.slice(0, 3).map((p, i) => (
                 <div
-                  key={o.id}
+                  key={i}
                   className="flex items-center justify-between py-2 border-b border-border last:border-0"
                 >
-                  <div>
-                    <p className="text-sm font-medium">{o.manufacturerName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {o.contractName}
-                    </p>
-                  </div>
-                  <StatusBadge status={o.status} />
+                  <p className="text-sm font-medium">{String(p.manufacturer_name ?? "")}</p>
                 </div>
-              ))}
+              ))
+            )}
           </div>
         </div>
       </div>
