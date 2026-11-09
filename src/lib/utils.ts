@@ -7,8 +7,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// VITE_HASHCASE_API_URL takes priority: VITE_API_URL on Vercel still points at
+// the expired api.hashcase.co and can't be edited without email verification.
+export const API_URL: string =
+  import.meta.env.VITE_HASHCASE_API_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:8000";
+
 export const axiosOwner = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
+  baseURL: API_URL,
 });
 
 axiosOwner.interceptors.request.use(
@@ -25,7 +32,7 @@ axiosOwner.interceptors.request.use(
 );
 
 export const axiosManufacturer = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
+  baseURL: API_URL,
 });
 
 axiosManufacturer.interceptors.request.use(

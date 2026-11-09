@@ -1,10 +1,10 @@
 // API layer
 import Cookies from "js-cookie";
-import { axiosOwner, axiosManufacturer } from "@/lib/utils";
+import { axiosOwner, axiosManufacturer, API_URL } from "@/lib/utils";
 import { IpContractCategory, IpContractStatus } from "@/types/contract";
 export { IpContractCategory, IpContractStatus };
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const BASE_URL = API_URL;
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
