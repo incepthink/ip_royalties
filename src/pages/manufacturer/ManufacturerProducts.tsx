@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusBadge from "@/components/StatusBadge";
-import { axiosManufacturer } from "@/lib/utils";
+import { axiosManufacturer, txExplorerUrl } from "@/lib/utils";
+import { ExternalLink } from "lucide-react";
 
 interface Product {
   contract_name: string;
   product_name: string;
   product_quantity: number;
   transaction_hash: string | null;
+  token_id?: number | null;
   contract_status: string;
+  mint_status?: string;
 }
 
 interface Summary {
@@ -89,13 +92,23 @@ export default function ManufacturerProducts() {
                   <td className="p-4 font-medium">{p.contract_name}</td>
                   <td className="p-4">{p.product_name}</td>
                   <td className="p-4">{p.product_quantity}</td>
-                  <td className="p-4 font-mono text-xs text-accent">
-                    {p.transaction_hash
-                      ? `${p.transaction_hash.slice(0, 10)}...${p.transaction_hash.slice(-8)}`
-                      : "—"}
+                  <td className="p-4 font-mono text-xs">
+                    {p.transaction_hash ? (
+                      <a
+                        href={txExplorerUrl(p.transaction_hash)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent hover:underline inline-flex items-center gap-1"
+                      >
+                        {p.transaction_hash.slice(0, 10)}...{p.transaction_hash.slice(-8)}
+                        <ExternalLink size={12} />
+                      </a>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="p-4">
-                    <StatusBadge status={p.contract_status} />
+                    <StatusBadge status={p.mint_status ?? (p.transaction_hash ? "Minted" : "Pending")} />
                   </td>
                 </tr>
               ))}
