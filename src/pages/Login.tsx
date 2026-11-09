@@ -14,13 +14,35 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const loginAsDemo = (demoRole: "owner" | "manufacturer") => {
-    const demoUsers = {
-      owner: { id: "owner1", name: "Jordan Brand", email: "owner@demo.com", role: "owner" as const },
-      manufacturer: { id: "mfr1", name: "Nike Corp", email: "mfr@demo.com", role: "manufacturer" as const, company: "Nike Corp", walletAddress: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a3c" },
-    };
-    login("mock-jwt-token", demoUsers[demoRole]);
-    navigate(demoRole === "owner" ? "/owner/dashboard" : "/manufacturer/dashboard");
+  // Demo accounts are real accounts on hashcase-server; credentials come from
+  // Vercel env vars (VITE_DEMO_*) so they stay out of git.
+  const demoAccounts = {
+    owner: {
+      email: import.meta.env.VITE_DEMO_OWNER_EMAIL as string | undefined,
+      password: import.meta.env.VITE_DEMO_OWNER_PASSWORD as string | undefined,
+    },
+    manufacturer: {
+      email: import.meta.env.VITE_DEMO_MANUFACTURER_EMAIL as string | undefined,
+      password: import.meta.env.VITE_DEMO_MANUFACTURER_PASSWORD as string | undefined,
+    },
+  };
+
+  const loginAsDemo = async (demoRole: "owner" | "manufacturer") => {
+    const creds = demoAccounts[demoRole];
+    if (!creds.email || !creds.password) {
+      toast.error("Demo account is not configured");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await loginUser({ email: creds.email, password: creds.password, role: demoRole });
+      login(res.token, res.user);
+      navigate(demoRole === "owner" ? "/owner/dashboard" : "/manufacturer/dashboard");
+    } catch (err: any) {
+      toast.error(err.message || "Demo login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
