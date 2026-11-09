@@ -14,6 +14,17 @@ export const API_URL: string =
   import.meta.env.VITE_API_URL ||
   "http://localhost:8000";
 
+// IP royalty products are minted as ERC-1155 tokens on Base Sepolia
+export const txExplorerUrl = (hash: string) => `https://sepolia.basescan.org/tx/${hash}`;
+
+export const formatDate = (value?: string | null) => {
+  if (!value) return "";
+  const d = new Date(value);
+  return isNaN(d.getTime())
+    ? String(value)
+    : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+};
+
 export const axiosOwner = axios.create({
   baseURL: API_URL,
 });

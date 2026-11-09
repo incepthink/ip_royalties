@@ -2,19 +2,24 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusBadge from "@/components/StatusBadge";
-import { getContractById, getContractNFTs } from "@/api";
-import type { Contract, NFT } from "@/api";
+import { getContractById, getContractNFTs, getOwnerIpProposals } from "@/api";
+import type { Contract, NFT, IpProposal } from "@/api";
+import { formatDate, txExplorerUrl } from "@/lib/utils";
 import { CheckCircle, XCircle, ExternalLink } from "lucide-react";
 
 export default function ContractDetail() {
   const { id } = useParams();
   const [contract, setContract] = useState<Contract | null>(null);
   const [nfts, setNfts] = useState<NFT[]>([]);
+  const [proposals, setProposals] = useState<IpProposal[]>([]);
 
   useEffect(() => {
     if (id) {
       getContractById(id).then(setContract);
       getContractNFTs(id).then(setNfts);
+      getOwnerIpProposals().then((all) =>
+        setProposals(all.filter((p) => p.ip_contract_id === id)),
+      );
     }
   }, [id]);
 
@@ -25,11 +30,19 @@ export default function ContractDetail() {
       </DashboardLayout>
     );
 
-  const progress =
-    contract.agreedQuantity > 0
-      ? (contract.mintedCount / contract.agreedQuantity) * 100
-      : 0;
-  const revenueOwed = contract.mintedCount * 180 * (contract.royaltyCut / 100);
+  // Units are minted when a proposal is accepted
+  const accepted = proposals.filter((p) => p.status === "Accepted");
+  const agreedQuantity = accepted.reduce((sum, p) => sum + p.quantity, 0);
+  const mintedCount = accepted
+    .filter((p) => p.transaction_hash)
+    .reduce((sum, p) => sum + p.quantity, 0);
+  const progress = agreedQuantity > 0 ? (mintedCount / agreedQuantity) * 100 : 0;
+  const revenueOwed = accepted.reduce((sum, p) => sum + Number(p.total_royalty_owed || 0), 0);
+  const grossValue = accepted.reduce(
+    (sum, p) => sum + p.quantity * Number(p.estimated_unit_value || 0),
+    0,
+  );
+  const latest = accepted[accepted.length - 1];
 
   return (
     <DashboardLayout>
@@ -86,30 +99,37 @@ export default function ContractDetail() {
 
         {/* Right */}
         <div className="lg:col-span-2 space-y-6">
-          {contract.manufacturerName && (
+          {latest && (
             <div className="bg-card rounded-xl border border-border p-6 shadow-card">
               <h3 className="font-semibold mb-3">Manufacturer</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Name</span>
                   <span className="font-medium">
-                    {contract.manufacturerName}
+                    {latest.manufacturer_name}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Company</span>
-                  <span className="font-medium">
-                    {contract.manufacturerName}
-                  </span>
+                  <span className="text-muted-foreground">Product</span>
+                  <span className="font-medium">{latest.product_name}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Wallet</span>
-                  <span className="font-mono text-xs">0x1a2b...9f3c</span>
+                  <span className="font-mono text-xs">
+                    {latest.wallet_address.slice(0, 6)}...{latest.wallet_address.slice(-4)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Accepted</span>
-                  <span className="font-medium">{contract.createdAt}</span>
+                  <span className="font-medium">
+                    {formatDate(latest.minted_at || latest.createdAt)}
+                  </span>
                 </div>
+                {accepted.length > 1 && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    +{accepted.length - 1} more accepted proposal(s)
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -146,7 +166,7 @@ export default function ContractDetail() {
               </div>
             </div>
             <div className="text-center text-sm text-muted-foreground">
-              {contract.mintedCount} / {contract.agreedQuantity} products minted
+              {mintedCount.toLocaleString()} / {agreedQuantity.toLocaleString()} products minted
             </div>
           </div>
 
@@ -156,7 +176,7 @@ export default function ContractDetail() {
               ${revenueOwed.toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {contract.mintedCount} units × $180 × {contract.royaltyCut}%
+              ${grossValue.toLocaleString()} product value × {contract.royaltyCut}%
             </p>
           </div>
         </div>
@@ -189,18 +209,34 @@ export default function ContractDetail() {
               </tr>
             </thead>
             <tbody>
+              {nfts.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                    No products minted yet. Accept a proposal to mint.
+                  </td>
+                </tr>
+              )}
               {nfts.map((n, i) => (
                 <tr
                   key={i}
                   className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
                   <td className="p-4 font-mono font-medium">{n.tokenId}</td>
-                  <td className="p-4 text-muted-foreground">{n.mintedDate}</td>
+                  <td className="p-4 text-muted-foreground">{formatDate(n.mintedDate)}</td>
                   <td className="p-4">
-                    <span className="font-mono text-xs text-accent cursor-pointer hover:underline flex items-center gap-1">
-                      {n.transactionHash.slice(0, 10)}...
-                      {n.transactionHash.slice(-8)} <ExternalLink size={12} />
-                    </span>
+                    {n.transactionHash ? (
+                      <a
+                        href={txExplorerUrl(n.transactionHash)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-xs text-accent hover:underline inline-flex items-center gap-1"
+                      >
+                        {n.transactionHash.slice(0, 10)}...
+                        {n.transactionHash.slice(-8)} <ExternalLink size={12} />
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="p-4">
                     <StatusBadge status={n.status} />

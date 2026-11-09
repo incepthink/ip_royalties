@@ -64,7 +64,7 @@ export interface NFT {
   contractName: string;
   mintedDate: string;
   transactionHash: string;
-  status: "Minted" | "Transferred" | "Verified";
+  status: "Minted" | "Transferred" | "Verified" | "Pending";
 }
 
 // --- Mock Data ---
@@ -356,19 +356,29 @@ export async function loginUser(data: {
 }
 
 // --- Contracts ---
+// The API returns lists as arrays; older rows may hold a JSON string
+const toStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map(String) : [value];
+    } catch {
+      return value.split(",").map((v) => v.trim()).filter(Boolean);
+    }
+  }
+  return [];
+};
+
 const mapCollection = (c: any): Contract => ({
   id: String(c.id),
   name: c.name,
   description: c.description || "",
   imageUrl: c.imageUrl || c.image_url || c.image_uri || "",
-  ownerId: String(c.ownerId ?? c.owner_id),
-  ownerName: c.ownerName ?? "",
-  allowedUseCases: Array.isArray(c.allowedUseCases)
-    ? c.allowedUseCases
-    : (() => { try { return JSON.parse(c.allowed_use_cases || c.allowedUseCases || "[]"); } catch { return []; } })(),
-  restrictions: Array.isArray(c.restrictions)
-    ? c.restrictions
-    : (() => { try { return JSON.parse(c.restrictions || "[]"); } catch { return []; } })(),
+  ownerId: String(c.ownerId ?? c.owner_id ?? ""),
+  ownerName: c.ownerName ?? c.owner_name ?? "",
+  allowedUseCases: toStringList(c.allowedUseCases ?? c.allowed_use_cases),
+  restrictions: toStringList(c.restrictions),
   royaltyCut: Number(c.royaltyCut ?? c.royalty_cut ?? 0),
   isPublished: Boolean(c.isPublished ?? c.is_published),
   status: (() => {
@@ -419,9 +429,9 @@ export async function createContract(data: CreateContractPayload) {
 
 const mapOrder = (o: any): Order => ({
   id: String(o.id),
-  contractId: String(o.contractId ?? o.collection_id ?? ""),
-  contractName: o.contractName ?? o.collection?.name ?? "",
-  ownerName: o.ownerName ?? "",
+  contractId: String(o.contractId ?? o.ip_contract_id ?? o.collection_id ?? ""),
+  contractName: o.contractName ?? o.ip_contract_name ?? o.collection?.name ?? "",
+  ownerName: o.ownerName ?? o.owner_name ?? "",
   manufacturerName: o.manufacturerName ?? "",
   manufacturerId: String(o.manufacturerId ?? o.user_id ?? ""),
   productName: o.productName ?? o.product_name ?? "",
@@ -433,7 +443,7 @@ const mapOrder = (o: any): Order => ({
   status: (o.status
     ? o.status.charAt(0).toUpperCase() + o.status.slice(1)
     : "Pending") as Order["status"],
-  royaltyCut: Number(o.royaltyCut ?? o.collection?.royalty_cut ?? 0),
+  royaltyCut: Number(o.royaltyCut ?? o.royalty_cut ?? o.collection?.royalty_cut ?? 0),
   createdAt: o.createdAt ? String(o.createdAt).split("T")[0] : "",
 });
 
@@ -497,6 +507,11 @@ export interface IpProposal {
   wallet_address: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
   createdAt: string;
+  royalty_cut?: number;
+  manufacturer_name?: string;
+  token_id?: number | null;
+  transaction_hash?: string | null;
+  minted_at?: string | null;
 }
 
 export async function getOwnerIpProposals(): Promise<IpProposal[]> {
@@ -510,11 +525,18 @@ export async function updateProposalStatus(ip_proposal_id: string, status: 'Acce
 }
 
 // --- NFTs ---
-export async function getContractNFTs(collectionId: string) {
-  await delay(300);
-  return mockNFTs.filter(
-    (n) => n.contractName === "Air Logo License" || collectionId === "c3",
-  );
+// Minted products for one IP contract, from the owner's accepted proposals
+export async function getContractNFTs(contractId: string): Promise<NFT[]> {
+  const proposals = await getOwnerIpProposals();
+  return proposals
+    .filter((p) => p.ip_contract_id === contractId && p.status === "Accepted")
+    .map((p) => ({
+      tokenId: p.token_id != null ? `#${p.token_id}` : "—",
+      contractName: p.ip_contract_name,
+      mintedDate: p.minted_at || p.createdAt,
+      transactionHash: p.transaction_hash || "",
+      status: p.transaction_hash ? "Minted" : "Pending",
+    }));
 }
 
 export async function getManufacturerNFTs(userId: string) {

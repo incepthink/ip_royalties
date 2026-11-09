@@ -5,6 +5,7 @@ import { getOwnerIpProposals, updateProposalStatus } from "@/api";
 import type { IpProposal } from "@/api";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
 
 export default function OwnerProposals() {
   const [orders, setOrders] = useState<IpProposal[]>([]);
@@ -26,6 +27,7 @@ export default function OwnerProposals() {
       await updateProposalStatus(order.id, "Accepted");
       setOrders(await getOwnerIpProposals());
       setConfirmModal(null);
+      toast.success(`Accepted. ${order.quantity} units minted on-chain.`);
     } catch (err: any) {
       toast.error(err.message || "Failed to accept order");
     } finally {
@@ -38,6 +40,7 @@ export default function OwnerProposals() {
     try {
       await updateProposalStatus(id, "Rejected");
       setOrders(await getOwnerIpProposals());
+      toast.success("Proposal rejected");
     } catch (err: any) {
       toast.error(err.message || "Failed to reject order");
     } finally {
@@ -73,7 +76,7 @@ export default function OwnerProposals() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
-                  <h3 className="font-semibold">{o.owner_email}</h3>
+                  <h3 className="font-semibold">{o.manufacturer_name || "Manufacturer"}</h3>
                   <StatusBadge status={o.status} />
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -96,12 +99,12 @@ export default function OwnerProposals() {
                   <div>
                     <span className="text-muted-foreground">Intended Use:</span>{" "}
                     <span className="font-medium">
-                      {o.intended_use.slice(0, 40)}...
+                      {o.intended_use.length > 40 ? `${o.intended_use.slice(0, 40)}...` : o.intended_use}
                     </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Date:</span>{" "}
-                    <span className="font-medium">{o.createdAt}</span>
+                    <span className="font-medium">{formatDate(o.createdAt)}</span>
                   </div>
                 </div>
               </div>
